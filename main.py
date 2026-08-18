@@ -4,7 +4,7 @@ from config import get_or_create_config, TCP_PORT, DISCOVERY_PORT
 from utils.crypto import derive_key, hash_room_code
 from core.discovery import Discovery
 from core.peer_manager import PeerManager
-from core.server import server
+from core.server import Server
 from core.client import Client
 from features.chat import Chat
 
@@ -23,7 +23,7 @@ class LocalChat:
         self.chat = Chat(self.name, self.client, self.peer_manager)
 
         # Server
-        self.server = server(
+        self.server = Server(
             host="0.0.0.0", port=TCP_PORT, key=self.key, on_message=self._on_message
         )
 

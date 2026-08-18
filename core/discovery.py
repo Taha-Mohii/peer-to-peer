@@ -6,7 +6,7 @@ from utils.crypto import hash_room_code
 
 DISCOVERY_PORT = 5001
 BROADCAST_ADDR = "255.255.255.255"
-HELLO_INTERVAL = 5  
+HELLO_INTERVAL = 5
 
 
 class Discovery:
@@ -40,12 +40,14 @@ class Discovery:
 
     def _send_hello(self):
         """Sends a HELLO broadcast to the entire local network."""
-        msg = json.dumps({
-            "type": "HELLO",
-            "name": self.name,
-            "port": self.tcp_port,
-            "room": self.room_hash
-        }).encode()
+        msg = json.dumps(
+            {
+                "type": "HELLO",
+                "name": self.name,
+                "port": self.tcp_port,
+                "room": self.room_hash,
+            }
+        ).encode()
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -53,12 +55,14 @@ class Discovery:
 
     def _send_ack(self, ip: str):
         """Sends HELLO_ACK directly to a specific peer."""
-        msg = json.dumps({
-            "type": "HELLO_ACK",
-            "name": self.name,
-            "port": self.tcp_port,
-            "room": self.room_hash
-        }).encode()
+        msg = json.dumps(
+            {
+                "type": "HELLO_ACK",
+                "name": self.name,
+                "port": self.tcp_port,
+                "room": self.room_hash,
+            }
+        ).encode()
 
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.sendto(msg, (ip, DISCOVERY_PORT))
@@ -103,8 +107,11 @@ class Discovery:
 
     def _register_peer(self, ip: str, name: str, port: int):
         """Adds peer to known list and fires callback if new."""
+        local_ip = socket.gethostbyname(socket.gethostname())
+        if ip == local_ip:
+            return
+
         if ip not in self.known_peers:
             self.known_peers[ip] = {"name": name, "port": port}
             print(f"[Discovery] Found peer: {name} at {ip}:{port}")
             self.on_peer_found(ip, name, port)
-           

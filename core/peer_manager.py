@@ -1,7 +1,7 @@
 import threading
 
 class PeerManager:
-    def __int__(self):
+    def __init__(self):
         """
         Stores all active peers.
         Uses a lock because multiple threads may add/remove peers at the same time.
