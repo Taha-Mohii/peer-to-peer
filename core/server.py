@@ -3,7 +3,7 @@ import threading
 from utils.framing import decode_message
 from utils.crypto import decrypt_message
 
-class server:
+class Server:
     def __init__(self, host: str, port: int, key: bytes, on_message):
         """
         host       → IP to bind to, usually "0.0.0.0" (accept from anyone)
@@ -21,6 +21,9 @@ class server:
         self.running = True
         threading.Thread(target=self._accept_loop, daemon=True).start()
         print(f"[Server] Listening on {self.host}:{self.port}")
+
+    def stop(self):
+        self.running = False
 
     def _accept_loop(self):
         """Main loop __ accepts incoming connections."""
