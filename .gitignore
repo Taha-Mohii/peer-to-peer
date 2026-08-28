@@ -14,4 +14,8 @@ __pycache__/
 
 # OS files
 .DS_Store
-Thumbs.db
+Thumbs.dbshared/*
+downloads/*
+storage/localchat.db
+__pycache__/
+*.pyc
