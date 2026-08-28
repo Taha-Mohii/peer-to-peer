@@ -1,3 +1,8 @@
+import os
+
+os.environ["QT_SCALE_FACTOR"] = "2"
+
+
 import sys
 import threading
 import time
@@ -18,7 +23,7 @@ from ui.chat_screen import ChatScreen
 
 
 class MessageWorker(QThread):
-    new_message = pyqtSignal(str, str, str, bool)  # from_name, text, timestamp, is_self
+    new_message = pyqtSignal(str, str, str, bool)
 
     def __init__(self, chat):
         super().__init__()
@@ -33,13 +38,24 @@ class App:
         self.qt_app = QApplication(sys.argv)
         self.window = QStackedWidget()
         self.window.setWindowTitle("LocalChat")
+        self.window.setStyleSheet("background-color: #1e1e2e;")
 
         self.chat_engine = None
         self.chat_screen = None
 
         self._show_launch()
+        self.window.resize(500, 500)
         self.window.show()
+        self._center_window()
         sys.exit(self.qt_app.exec_())
+
+    def _center_window(self):
+        from PyQt5.QtWidgets import QDesktopWidget
+
+        screen = QDesktopWidget().screenGeometry()
+        x = (screen.width() - self.window.width()) // 2
+        y = (screen.height() - self.window.height()) // 2
+        self.window.move(x, y)
 
     def _show_launch(self):
         launch = LaunchScreen(on_join=self._on_join)
@@ -50,8 +66,9 @@ class App:
         config = get_or_create_config(name)
         key = derive_key(room_code)
         init_db()
+        self.current_room_code = room_code
+        self.key = key
 
-        # Set up core components
         self.peer_manager = PeerManager()
         self.client = Client(key)
         self.chat_engine = Chat(name, self.client, self.peer_manager)
@@ -76,11 +93,8 @@ class App:
 
         self.server.start()
         self.discovery.start()
-
-        # Run election after a short delay to let peers discover first
         threading.Timer(3.0, self.election.run).start()
 
-        # Show chat screen
         self.chat_screen = ChatScreen(
             name=name,
             room_code=room_code,
@@ -92,11 +106,8 @@ class App:
         self.window.setMinimumSize(600, 500)
 
     def _on_message(self, ip: str, msg: dict):
-        """Called from server thread — update UI safely."""
         result = self.chat_engine.receive(ip, msg)
         if result and self.chat_screen:
-            formatted = self.chat_engine.format_message(result)
-            # Use invokeMethod to update UI from non-GUI thread
             from PyQt5.QtCore import QMetaObject, Qt
 
             QMetaObject.invokeMethod(
@@ -107,7 +118,6 @@ class App:
             )
 
     def _make_args(self, msg: dict, is_self: bool):
-        import time
         from PyQt5.QtCore import Q_ARG
 
         ts = time.strftime("%H:%M", time.localtime(msg.get("timestamp", 0)))
@@ -122,13 +132,13 @@ class App:
         self.peer_manager.add_peer(ip, name, port)
         if self.chat_screen:
             count = len(self.peer_manager.get_peers())
-            from PyQt5.QtCore import QMetaObject, Qt
+            from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
 
             QMetaObject.invokeMethod(
                 self.chat_screen,
                 "update_peers",
                 Qt.QueuedConnection,
-                *[__import__("PyQt5.QtCore", fromlist=["Q_ARG"]).Q_ARG(int, count)],
+                Q_ARG(int, count),
             )
 
     def _on_elected(self):
@@ -137,27 +147,22 @@ class App:
     def _send_message(self, text: str):
         msg = self.chat_engine.send(text)
         if self.chat_screen:
-            import time
-
             ts = time.strftime("%H:%M", time.localtime(msg.get("timestamp", 0)))
             self.chat_screen.add_message(
                 msg.get("from", ""), msg.get("text", ""), ts, is_self=True
             )
 
     def _send_file(self, filepath: str):
-        import os
+        import shutil
         from features.file_transfer import send_file
 
         filename = os.path.basename(filepath)
-        # Copy to shared folder first
-        import shutil
-
         shutil.copy(filepath, f"shared/{filename}")
         peers = self.peer_manager.get_peers()
         for ip, info in peers.items():
             threading.Thread(
                 target=send_file,
-                args=(ip, info["port"], filename, self.client.key),
+                args=(ip, info["port"], filename, self.key),
                 daemon=True,
             ).start()
 

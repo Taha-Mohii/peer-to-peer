@@ -20,7 +20,7 @@ def derive_key(room_code: str) -> bytes:
         algorithm=hashes.SHA256(),
         length=32,            # 256 bit key
         salt=APP_SALT,
-        iterations=100_000,   # slow enough to resist brute force
+        iterations=10_000,   # slow enough to resist brute force
     )
     return kdf.derive(room_code.upper().encode())
 
