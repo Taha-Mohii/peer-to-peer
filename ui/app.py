@@ -2,7 +2,6 @@ import os
 
 os.environ["QT_SCALE_FACTOR"] = "2"
 
-
 import sys
 import threading
 import time
@@ -39,6 +38,7 @@ class App:
         self.window = QStackedWidget()
         self.window.setWindowTitle("LocalChat")
         self.window.setStyleSheet("background-color: #1e1e2e;")
+        self.dm_screens = {}
 
         self.chat_engine = None
         self.chat_screen = None
@@ -100,6 +100,7 @@ class App:
             room_code=room_code,
             on_send=self._send_message,
             on_send_file=self._send_file,
+            on_dm=self._open_dm,
         )
         self.window.addWidget(self.chat_screen)
         self.window.setCurrentWidget(self.chat_screen)
@@ -116,6 +117,21 @@ class App:
                 Qt.QueuedConnection,
                 *self._make_args(result, is_self=False),
             )
+            # Route to DM screen if open
+            if ip in self.dm_screens:
+                dm = self.dm_screens[ip]
+                from PyQt5.QtCore import QMetaObject, Qt, Q_ARG
+
+                ts = time.strftime("%H:%M", time.localtime(result.get("timestamp", 0)))
+                QMetaObject.invokeMethod(
+                    dm,
+                    "add_message",
+                    Qt.QueuedConnection,
+                    Q_ARG(str, result.get("from", "unknown")),
+                    Q_ARG(str, result.get("text", "")),
+                    Q_ARG(str, ts),
+                    Q_ARG(bool, False),
+                )
 
     def _make_args(self, msg: dict, is_self: bool):
         from PyQt5.QtCore import Q_ARG
@@ -140,9 +156,48 @@ class App:
                 Qt.QueuedConnection,
                 Q_ARG(int, count),
             )
+            QMetaObject.invokeMethod(
+                self.chat_screen,
+                "add_peer",
+                Qt.QueuedConnection,
+                Q_ARG(str, ip),
+                Q_ARG(str, name),
+            )
+            QMetaObject.invokeMethod(
+                self.chat_screen,
+                "add_notification",
+                Qt.QueuedConnection,
+                Q_ARG(str, f"{name} joined the room"),
+            )
 
     def _on_elected(self):
         print("[App] This peer is the host")
+
+    def _open_dm(self, ip: str, peer_name: str):
+        from ui.dm_screen import DMScreen
+
+        if ip in self.dm_screens:
+            self.dm_screens[ip].raise_()
+            return
+        dm = DMScreen(
+            my_name=self.chat_engine.name,
+            peer_name=peer_name,
+            peer_ip=ip,
+            on_send=self._send_dm,
+            on_send_file=self._send_file,
+        )
+        dm.show()
+        self.dm_screens[ip] = dm
+
+    def _send_dm(self, ip: str, text: str):
+        peer = self.peer_manager.get_peer(ip)
+        if peer:
+            msg = self.chat_engine.send_to_peer(ip, peer["port"], text)
+            if msg and ip in self.dm_screens:
+                ts = time.strftime("%H:%M", time.localtime(msg.get("timestamp", 0)))
+                self.dm_screens[ip].add_message(
+                    msg.get("from", ""), msg.get("text", ""), ts, is_self=True
+                )
 
     def _send_message(self, text: str):
         msg = self.chat_engine.send(text)

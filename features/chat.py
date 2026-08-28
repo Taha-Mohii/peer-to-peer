@@ -45,3 +45,9 @@ class Chat:
         """Formats a message dict for display."""
         ts = time.strftime("%H:%M", time.localtime(msg.get("timestamp", 0)))
         return f"[{ts}] {msg.get('from', 'unknown')}: {msg.get('text', '')}"
+    
+    def send_to_peer(self, ip: str, port: int, text: str) -> dict:
+        """Send a direct message to one specific peer."""
+        msg = make_msg(self.name, text)
+        self.client.send(ip, port, msg)
+        return msg
